@@ -47,7 +47,8 @@ class CSRFX {
                               '/\/benachrichtigungen/i',
                               '/\/beanstanden/i',
                               '/\/loeschen/i', 
-                              '/\/logout/i');    
+                              '/\/logout/i',
+                              '/\/passwort/i');    
     
     private $dbh = null;
     
@@ -119,7 +120,7 @@ class CSRFX {
             foreach ($this->{$this->method . '_patterns'} as $pattern) {
                 if(preg_match($pattern, $_SERVER['REQUEST_URI']) || isset($_POST[$this->name])) {
                     #check get requests
-                    if (preg_match('/=(\w{4000})$/', $_SERVER['REQUEST_URI'], $matches)) {
+                    if (preg_match('/=(\w{40})$/', $_SERVER['REQUEST_URI'], $matches)) {
                     	$result = $this->fetchToken($matches[1]);
                         if (!$result || $result['session'] != session_id() || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
                             $this->evokePenalty();		                	
@@ -212,9 +213,6 @@ class CSRFX {
      */
     private function evokePenalty($message = false) {
         
-        #clear table if penalty strikes
-        $this->deleteTokens();
-        
         header('HTTP/1.1 412 Precondition Failed');
         die('You are not authorized to view this site '.
             ' without correct security token. Click '.
@@ -245,7 +243,12 @@ class CSRFX {
     private function fetchToken($token = false) {
         $statement = $this->dbh->prepare("SELECT * FROM csrfx_tokens WHERE token = ?");
         $statement->execute(array($token));
-        return $statement->fetch();
+        $result = $statement->fetch();
+        
+        #clear table if penalty strikes
+        $this->deleteTokens();
+        
+        return $result;
     }
 }    
 

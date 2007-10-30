@@ -41,14 +41,16 @@ class CSRFX {
     
     private $get_patterns = array('/\/beanstanden/i',
                               '/\/loeschen/i', 
-                              '/\/logout/i');
+                              '/\/logout/i', 
+                              '/bankverbindung\/bearbeiten/i');
 
     private $post_patterns = array('/\/einstellungen/i', 
                               '/\/benachrichtigungen/i',
                               '/\/beanstanden/i',
                               '/\/loeschen/i', 
                               '/\/logout/i',
-                              '/\/passwort/i');    
+                              '/\/passwort/i',
+                              '/bankverbindung\/bearbeiten/i');    
     
     private $dbh = null;
     
@@ -118,9 +120,9 @@ class CSRFX {
         
         if($this->method == 'get' || $this->method == 'post') {
             foreach ($this->{$this->method . '_patterns'} as $pattern) {
-                if(preg_match($pattern, $_SERVER['REQUEST_URI']) || isset($_POST[$this->name])) {
+            	if(preg_match($pattern, rawurldecode($_SERVER['REQUEST_URI'])) || isset($_POST[$this->name])) {
                     #check get requests
-                    if (preg_match('/=(\w{40})$/', $_SERVER['REQUEST_URI'], $matches)) {
+                    if (preg_match('/=(\w{40})$/', rawurldecode($_SERVER['REQUEST_URI']), $matches)) {
                     	$result = $this->fetchToken($matches[1]);
                         if (!$result || $result['session'] != session_id() || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
                             $this->evokePenalty();		                	

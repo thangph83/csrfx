@@ -34,7 +34,7 @@
  */
 class CSRFX {
     
-    private $name = 'schutz-token';
+    private $name = '_csrfx';
     private $separator = '?';
     private $token = false;
     private $method = false;

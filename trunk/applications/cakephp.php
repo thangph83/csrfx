@@ -22,6 +22,7 @@ $default = $config->default;
 //$test = $config->test;
 //$dev = $config->dev;
 
+define('CSRFX_EXCLUDE', '/(?:\/admin\/)/i');
 define('CSRFX_PATH', $default['driver'] . ':host=' . $default['host'] . ';dbname=' . $default['database']);
 define('CSRFX_USER', $default['login']);
 define('CSRFX_PASS', $default['password']);
@@ -35,3 +36,22 @@ define('CSRFX_PATH', $dev['driver'] . ':host=' . $dev['host'] . ';dbname=' . $de
 define('CSRFX_USER', $dev['login']);
 define('CSRFX_PASS', $dev['password']);
 **/ 
+
+#fetch cake session for better scalability
+$session = new CakeSession;
+$session = $session->read();
+
+$this->session = session_id();
+
+$this->get_patterns = array('/\/beanstanden/i',
+                            '/\/loeschen/i', 
+                            '/\/logout/i', 
+                            '/bankverbindung\/bearbeiten/i');
+
+$this->post_patterns = array('/\/einstellungen/i', 
+                             '/\/benachrichtigungen/i',
+                             '/\/beanstanden/i',
+                             '/\/loeschen/i', 
+                             '/\/logout/i',
+                             '/\/passwort/i',
+                             '/bankverbindung\/bearbeiten/i'); 

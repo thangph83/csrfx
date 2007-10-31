@@ -38,20 +38,9 @@ class CSRFX {
     private $separator = '?';
     private $token = false;
     private $method = false;
-    
-    private $get_patterns = array('/\/beanstanden/i',
-                              '/\/loeschen/i', 
-                              '/\/logout/i', 
-                              '/bankverbindung\/bearbeiten/i');
-
-    private $post_patterns = array('/\/einstellungen/i', 
-                              '/\/benachrichtigungen/i',
-                              '/\/beanstanden/i',
-                              '/\/loeschen/i', 
-                              '/\/logout/i',
-                              '/\/passwort/i',
-                              '/bankverbindung\/bearbeiten/i');    
-    
+    private $session = false;
+    private $get_patterns = false;
+    private $post_patterns = false;    
     private $dbh = null;
     
     /**
@@ -69,10 +58,6 @@ class CSRFX {
         ob_start();
         $this->token = sha1(microtime()*rand());
         
-        if (!session_id()) {
-            session_start();
-        }
-
         return true;
     }
 
@@ -111,10 +96,11 @@ class CSRFX {
      * @throws Exception
      */
     public function beginProtection() {
-
+    	
         #disable support for XHR //TODO: think about a solution
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
-            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest'
+                || preg_match(CSRFX_EXCLUDE, $_SERVER['REQUEST_URI'])) {
             return false;
         }  
         
@@ -125,14 +111,14 @@ class CSRFX {
                     #check get requests
                     if (preg_match('/=(\w{40})$/', rawurldecode($_SERVER['REQUEST_URI']), $matches)) {
                     	$result = $this->fetchToken($matches[1]);
-                        if (!$result || $result['session'] != session_id() || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
+                        if (!$result || $result['session'] != $this->session || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
                             $this->evokePenalty();		                	
                         } 
                     }
                     #check post requests
                     elseif (isset($_POST[$this->name])) {
                     	$result = $this->fetchToken($_POST[$this->name]);
-                    	if(!$result || $result['session'] != session_id() || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
+                    	if(!$result || $result['session'] != $this->session || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
                     		$this->evokePenalty();                          
                         }
                     } 
@@ -165,7 +151,8 @@ class CSRFX {
         
         #disable support for XHR //TODO: think about a solution 
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
-            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest'
+                || preg_match(CSRFX_EXCLUDE, $_SERVER['REQUEST_URI'])) {
             return false;
         }    	
         
@@ -195,10 +182,10 @@ class CSRFX {
                                             VALUES (:token, :session, :agent, NOW())
                                          ");
         $statement->bindParam(':token', $this->token, PDO::PARAM_STR, 40);
-        $statement->bindParam(':session', session_id(), PDO::PARAM_STR, strlen(session_id()));
+        $statement->bindParam(':session', $this->session, PDO::PARAM_STR, strlen($this->session));
         $statement->bindParam(':agent', md5($_SERVER['HTTP_USER_AGENT']), PDO::PARAM_STR, 32);
         $statement->execute(); 
-        
+
         #finally print the output
         print $this->output;
         
@@ -225,7 +212,7 @@ class CSRFX {
     }
 
     /**
-     * This method deletes the tokens with the matching session_id
+     * This method deletes the tokens with the matching CSRFX_SESSION
      *
      * @package CSRFx
      * @param void
@@ -233,7 +220,7 @@ class CSRFX {
      */
     private function deleteTokens() {
         $statement = $this->dbh->prepare("DELETE FROM csrfx_tokens WHERE session = ?");
-        $statement->execute(array(session_id()));
+        $statement->execute(array($this->session));
 
         return true;
     }

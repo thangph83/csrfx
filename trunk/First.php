@@ -120,6 +120,7 @@ class CSRFX {
         
         if($this->method == 'get' || $this->method == 'post') {
             foreach ($this->{$this->method . '_patterns'} as $pattern) {
+            	
             	if(preg_match($pattern, rawurldecode($_SERVER['REQUEST_URI'])) || isset($_POST[$this->name])) {
                     #check get requests
                     if (preg_match('/=(\w{40})$/', rawurldecode($_SERVER['REQUEST_URI']), $matches)) {
@@ -131,13 +132,13 @@ class CSRFX {
                     #check post requests
                     elseif (isset($_POST[$this->name])) {
                     	$result = $this->fetchToken($_POST[$this->name]);
-                        if(!$result || $result['session'] != session_id() || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
-                            $this->evokePenalty();                          
-                        }                         
+                    	if(!$result || $result['session'] != session_id() || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
+                    		$this->evokePenalty();                          
+                        }
                     } 
                     #no token found - penalty time!
                     else {
-                        $this->evokePenalty();
+                    	$this->evokePenalty();
                     }
                 }
             }
@@ -146,7 +147,6 @@ class CSRFX {
             header('HTTP/1.1 405 Method Not Allowed');
             throw new Exception('HTTP/1.1 405 Method Not Allowed');
         }
-        
         return true;
     }
     
@@ -214,7 +214,10 @@ class CSRFX {
      * @return void
      */
     private function evokePenalty($message = false) {
-        
+
+        #clear table if penalty strikes
+        $this->deleteTokens();    	
+    	
         header('HTTP/1.1 412 Precondition Failed');
         die('You are not authorized to view this site '.
             ' without correct security token. Click '.
@@ -246,9 +249,6 @@ class CSRFX {
         $statement = $this->dbh->prepare("SELECT * FROM csrfx_tokens WHERE token = ?");
         $statement->execute(array($token));
         $result = $statement->fetch();
-        
-        #clear table if penalty strikes
-        $this->deleteTokens();
         
         return $result;
     }

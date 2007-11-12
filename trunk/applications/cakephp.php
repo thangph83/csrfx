@@ -42,6 +42,10 @@ $session = new CakeSession;
 $session = $session->read();
 $this->session = session_id();
 
+#fetch the cake connection manager
+$this->dbh =& ConnectionManager::getDataSource('default');
+$this->dbm = 'query';
+
 $this->get_patterns = array('/\/whatever/i',
                             '/\/you/i', 
                             '/\/want/i');

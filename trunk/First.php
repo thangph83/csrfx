@@ -17,8 +17,8 @@
  * @package    CSRFx
  */
 
-// needed sql:  CREATE TABLE `csrfx_tokens` (`token` VARCHAR( 255 ) NOT NULL ,`session` VARCHAR( 255 ) NOT NULL, `agent` VARCHAR( 255 ) NOT NULL ,`created` TIMESTAMP NOT NULL) ENGINE = MYISAM 
-// optional sql: ALTER TABLE `csrfx_tokens` ADD INDEX ( `token` )
+// needed sql:  CREATE TABLE `csrfx_tokens` (`id` VARCHAR( 255 ) NOT NULL ,`session` VARCHAR( 255 ) NOT NULL, `agent` VARCHAR( 255 ) NOT NULL ,`created` TIMESTAMP NOT NULL) ENGINE = MYISAM 
+// optional sql: ALTER TABLE `csrfx_tokens` ADD INDEX ( `id` )
 // optional sql: ALTER TABLE `csrfx_tokens` ADD INDEX ( `session` ) 
 
 /**
@@ -34,14 +34,18 @@
  */
 class CSRFX {
     
-    private $name = '_csrfx';
+    private $name = 't';
     private $separator = '?';
     private $token = false;
     private $method = false;
-    private $session = false;
+    private $browser = false;
+    
     private $get_patterns = false;
     private $post_patterns = false;    
-    private $dbh = null;
+    
+    private $session = false;
+    private $dbh = false;
+    private $dbm = false;
     
     /**
      * The constructor makes sure the session has been started, 
@@ -54,6 +58,7 @@ class CSRFX {
     public function __construct() {
         
         $this->method = strtolower($_SERVER['REQUEST_METHOD']);
+        $this->browser = isset($_SERVER['HTTP_USER_AGENT'])?md5($_SERVER['HTTP_USER_AGENT']):md5(microtime()*rand(1,10));
         
         ob_start();
         $this->token = sha1(microtime()*rand());
@@ -74,8 +79,6 @@ class CSRFX {
         if ($name && !preg_match('/\W/', $name)) {
             require_once dirname(__FILE__) . '/applications/' . 
                 escapeshellcmd($name) .'.php';
-            
-            $this->dbh = new PDO(CSRFX_PATH, CSRFX_USER, CSRFX_PASS);            	
         } else {
             throw new Exception ('Invalid application name format');
         }
@@ -96,35 +99,35 @@ class CSRFX {
      * @throws Exception
      */
     public function beginProtection() {
-    	
         #disable support for XHR //TODO: think about a solution
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
-            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest'
-                || preg_match(CSRFX_EXCLUDE, $_SERVER['REQUEST_URI'])) {
+        if($this->isAjax()) {
             return false;
-        }  
+        }
+
+        #and clear the table from before adding new token
+        $this->deleteTokens();        
         
         if($this->method == 'get' || $this->method == 'post') {
             foreach ($this->{$this->method . '_patterns'} as $pattern) {
-            	
-            	if(preg_match($pattern, rawurldecode($_SERVER['REQUEST_URI'])) || isset($_POST[$this->name])) {
+                if(preg_match($pattern, rawurldecode($_SERVER['REQUEST_URI'])) 
+                  || isset($_POST[$this->name])) {
                     #check get requests
                     if (preg_match('/=(\w{40})$/', rawurldecode($_SERVER['REQUEST_URI']), $matches)) {
-                    	$result = $this->fetchToken($matches[1]);
-                        if (!$result || $result['session'] != $this->session || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
+                        $result = $this->fetchToken($this->session, $this->browser);
+                        if (!$result || !in_array($matches[1], $result, true)) {
                             $this->evokePenalty();		                	
                         } 
                     }
                     #check post requests
                     elseif (isset($_POST[$this->name])) {
-                    	$result = $this->fetchToken($_POST[$this->name]);
-                    	if(!$result || $result['session'] != $this->session || $result['agent'] != md5($_SERVER['HTTP_USER_AGENT'])) {
-                    		$this->evokePenalty();                          
+                        $result = $this->fetchToken($this->session, $this->browser);
+                        if (!$result || !in_array($_POST[$this->name], $result, true)) {
+                            $this->evokePenalty();                          
                         }
                     } 
                     #no token found - penalty time!
                     else {
-                    	$this->evokePenalty();
+                        $this->evokePenalty();
                     }
                 }
             }
@@ -148,13 +151,10 @@ class CSRFX {
      * @return boolean 
      */
     public function endProtection() {
-        
         #disable support for XHR //TODO: think about a solution 
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
-            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest'
-                || preg_match(CSRFX_EXCLUDE, $_SERVER['REQUEST_URI'])) {
+        if($this->isAjax()) {
             return false;
-        }    	
+        }
         
         $this->output = ob_get_contents();
         ob_end_clean();
@@ -165,7 +165,7 @@ class CSRFX {
         foreach(array_unique($matches[1]) as $link) {
             foreach ($this->{$this->method . '_patterns'} as $pattern) {
                 if (preg_match($pattern, substr($link, 0, -1))){
-                    $this->output = str_ireplace($link, $link.$this->separator.$this->name.'='.$this->token.'"', $this->output);            
+                    $this->output = str_ireplace($link, $link.$this->separator.$this->name.'='.$this->token, $this->output);            
                 }
             }
         }
@@ -173,18 +173,8 @@ class CSRFX {
         #add token to forms
         $this->output = str_ireplace('</form>', '<input type="hidden" name="'.$this->name.'" value="'.$this->token.'" /></form>', $this->output);            
         
-        #and clear the table from before adding new token
-        $this->deleteTokens();
-        
         #add new token to table
-        $statement = $this->dbh->prepare("INSERT 
-                                            INTO csrfx_tokens (token, session, agent, created) 
-                                            VALUES (:token, :session, :agent, NOW())
-                                         ");
-        $statement->bindParam(':token', $this->token, PDO::PARAM_STR, 40);
-        $statement->bindParam(':session', $this->session, PDO::PARAM_STR, strlen($this->session));
-        $statement->bindParam(':agent', md5($_SERVER['HTTP_USER_AGENT']), PDO::PARAM_STR, 32);
-        $statement->execute(); 
+        $this->addToken();
 
         #finally print the output
         print $this->output;
@@ -201,14 +191,8 @@ class CSRFX {
      * @return void
      */
     private function evokePenalty($message = false) {
-
-        #clear table if penalty strikes
-        $this->deleteTokens();    	
-    	
-        header('HTTP/1.1 412 Precondition Failed');
-        die('You are not authorized to view this site '.
-            ' without correct security token. Click '.
-            '<a href="/">here</a> to start over.');
+        header('location: /sicherheitsproblem/');
+        exit;
     }
 
     /**
@@ -219,9 +203,7 @@ class CSRFX {
      * @return boolean true
      */
     private function deleteTokens() {
-        $statement = $this->dbh->prepare("DELETE FROM csrfx_tokens WHERE session = ?");
-        $statement->execute(array($this->session));
-
+        $this->dbh->{$this->dbm}("DELETE FROM csrfx_tokens WHERE created < DATE_SUB(NOW(), INTERVAL 30 MINUTE)");
         return true;
     }
     
@@ -232,12 +214,55 @@ class CSRFX {
      * @param string the token to look for
      * @return mixed the result array or false
      */
-    private function fetchToken($token = false) {
-        $statement = $this->dbh->prepare("SELECT * FROM csrfx_tokens WHERE token = ?");
-        $statement->execute(array($token));
-        $result = $statement->fetch();
+    private function fetchToken($session = false, $browser = false) {
+        $result = $this->dbh->{$this->dbm}("SELECT id FROM csrfx_tokens 
+                                               WHERE session = '".mysql_escape_string($session)."'
+                                               AND agent = '".mysql_escape_string($browser)."'");
         
-        return $result;
+        if($result) {
+            $tokens = array();
+            foreach($result as $item) {
+                $tokens[] = $item['csrfx_tokens']['id'];
+            }
+            return $tokens;
+        }
+        return false;
+    }
+    
+    /**
+     * This method adds a new token to the crsfx table
+     * 
+     * @package CSRFx
+     * @param void
+     * @return mixed the execution result 
+     */
+    private function addToken() {
+        return $this->dbh->{$this->dbm}("INSERT 
+                                            INTO csrfx_tokens (id, session, agent, created) 
+                                            VALUES (
+                                                '".mysql_escape_string($this->token)."', 
+                                                '".mysql_escape_string($this->session)."', 
+                                                '".mysql_escape_string(md5($_SERVER['HTTP_USER_AGENT']))."', 
+                                                NOW()
+                                             )
+                                         ");
+    }
+    
+    /**
+     * This method checks if the request was XHR and returns 
+     * a true if yes
+     * 
+     * @package CSRFx
+     * @param void
+     * @return boolean true if XHR
+     */
+    private function isAjax() {
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
+            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest'
+                || preg_match(CSRFX_EXCLUDE, $_SERVER['REQUEST_URI'])) {
+            return true;
+        }
+        return false;     	
     }
 }    
 

@@ -133,8 +133,10 @@ class CSRFX {
             }
         } else {
             #method not allowed
+            error_log('First::beginProtection() => method not allowed: ' . $this->method . ', _SERVER: ' . var_export($_SERVER, true));
             header('HTTP/1.1 405 Method Not Allowed');
-            throw new Exception('HTTP/1.1 405 Method Not Allowed');
+            exit;
+            #throw new Exception('HTTP/1.1 405 Method Not Allowed');
         }
         return true;
     }
@@ -172,7 +174,8 @@ class CSRFX {
 
         #add token to forms
         $this->output = str_ireplace('</form>', '<input type="hidden" name="'.$this->name.'" value="'.$this->token.'" /></form>', $this->output);            
-        
+        $this->output = preg_replace('/(action="[^\"]+\/)\?t=\w{40}\"/', "$1\"", $this->output);
+         
         #add new token to table
         $this->addToken();
 

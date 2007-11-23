@@ -161,13 +161,17 @@ class CSRFX {
         $this->output = ob_get_contents();
         ob_end_clean();
         
-        #add token to matching links 
-        $matches = array();
-        preg_match_all('/(?:href="([^"\']+)")/i', $this->output, $matches);
-        foreach(array_unique($matches[1]) as $link) {
-            foreach ($this->{$this->method . '_patterns'} as $pattern) {
-                if (preg_match($pattern, substr($link, 0, -1))){
-                    $this->output = str_ireplace($link, $link.$this->separator.$this->name.'='.$this->token, $this->output);            
+        #add token to matching links
+        preg_match('/(([\w-]+\.)?[\w-]+$)/', $_SERVER['HTTP_HOST'], $host); 
+        preg_match_all('/(?:<a href=\'([^\']+)\'>)|(?:<a href="([^"]+)">)/im', $this->output, $matches);
+        $matches = array_unique(array_merge($matches[1], $matches[2])); 
+        foreach($matches as $link) {
+            preg_match('/([\w-]+\.[\w-]+)\//', $link, $submatches);
+            if(!isset($submatches[1]) || $submatches[1] == $host[1]) {
+	           foreach ($this->{$this->method . '_patterns'} as $pattern) {
+	               if (preg_match($pattern, substr($link, 0, -1))){
+	                   $this->output = str_ireplace($link, $link.$this->separator.$this->name.'='.$this->token, $this->output);            
+                    }
                 }
             }
         }

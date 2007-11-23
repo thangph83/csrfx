@@ -14,25 +14,46 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * @package    CSRFx
+ * PHP version 5.11.6+
+ * 
+ * @category Security
+ * @package  CSRFx
+ * @author   Mario Heiderich <mario.heiderich@gmail.com>
+ * @license  http://www.gnu.org/licenses/lgpl.html LGPL
+ * @link     http://code.google.com/p/csrfx/
  */
 
-// needed sql:  CREATE TABLE `csrfx_tokens` (`id` VARCHAR( 255 ) NOT NULL ,`session` VARCHAR( 255 ) NOT NULL, `agent` VARCHAR( 255 ) NOT NULL ,`created` TIMESTAMP NOT NULL) ENGINE = MYISAM 
-// optional sql: ALTER TABLE `csrfx_tokens` ADD INDEX ( `id` )
-// optional sql: ALTER TABLE `csrfx_tokens` ADD INDEX ( `session` ) 
+/*
+ * SQL
+ * 
+ * necessary sql:  CREATE TABLE `csrfx_tokens` (`id` VARCHAR( 255 ) NOT NULL ,
+ *      `session` VARCHAR( 255 ) NOT NULL, 
+ *      `agent` VARCHAR( 255 ) NOT NULL ,
+ *      `created` TIMESTAMP NOT NULL) ENGINE = MYISAM 
+ *
+ * optional sql: ALTER TABLE `csrfx_tokens` ADD INDEX ( `id` )
+ * optional sql: ALTER TABLE `csrfx_tokens` ADD INDEX ( `session` ) 
+ * 
+ */
+
 
 /**
  * This class inhabits all necessary 
  * logic for CSRFx
  *
- * @package CSRFx
- * @var private the name of the request parameter
- * @var private the token to protect forms and links - has to be null!
- * @var private the patterns for the requests to protect
- * @var private the application to load a config for - null if you have an own config 
- * @var private the database handle
+ * @category Security
+ * @package  CSRFx
+ * @author   Mario Heiderich <mario.heiderich@gmail.com>
+ * @license  http://www.gnu.org/licenses/lgpl.html LGPL
+ * @link     http://code.google.com/p/csrfx/
+ * @var      private the name of the request parameter
+ * @var      private the token to protect forms and links - has to be null!
+ * @var      private the patterns for the requests to protect
+ * @var      private the application to load a config for - null for own config 
+ * @var      private the database handle
  */
-class CSRFX {
+class CSRFX
+{
     
     private $name = 't';
     private $separator = '?';
@@ -47,18 +68,21 @@ class CSRFX {
     private $dbh = false;
     private $dbm = false;
     
+    private $penalty_url = '/security-problem/'; 
+    
     /**
      * The constructor makes sure the session has been started, 
      * generates the token and starts output buffering
      *
      * @package CSRFx
-     * @param void
      * @return boolean true
      */
-    public function __construct() {
+    public function __construct() 
+    {
         
-        $this->method = strtolower($_SERVER['REQUEST_METHOD']);
-        $this->browser = isset($_SERVER['HTTP_USER_AGENT'])?md5($_SERVER['HTTP_USER_AGENT']):md5(microtime()*rand(1,10));
+        $this->method  = strtolower($_SERVER['REQUEST_METHOD']);
+        $this->browser = isset($_SERVER['HTTP_USER_AGENT'])
+            ?md5($_SERVER['HTTP_USER_AGENT']):md5(microtime()*rand(1, 10));
         
         ob_start();
         $this->token = sha1(microtime()*rand());
@@ -71,13 +95,16 @@ class CSRFX {
      * connection data and patterns can be found
      *
      * @package CSRFx
-     * @param string the applications name/name of the profile file
-     * @throws Exception
+     * 
+     *  
+     * @throws Exception if invaild application name is given
      * @return Object this object for pagination
+     * @param string $name blafasel false
      */
-    public function loadProfile($name = false) {
+    public function loadProfile($name) 
+    {
         if ($name && !preg_match('/\W/', $name)) {
-            require_once dirname(__FILE__) . '/applications/' . 
+            include_once dirname(__FILE__) . '/applications/' . 
                 escapeshellcmd($name) .'.php';
         } else {
             throw new Exception ('Invalid application name format');
@@ -95,48 +122,43 @@ class CSRFX {
      * logic was evaluated.
      *
      * @package CSRFx
-     * @param void
-     * @throws Exception
+     * @throws Exception if method is not get or post
+     * @return void
      */
-    public function beginProtection() {
-        #disable support for XHR //TODO: think about a solution
-        if($this->isAjax()) {
+    public function beginProtection() 
+    {
+        //disable support for XHR //TODO: think about a solution
+        if ($this->_isAjax()) {
             return false;
         }
 
-        #and clear the table from before adding new token
-        $this->deleteTokens();        
+        //and clear the table from before adding new token
+        $this->_deleteTokens();        
         
-        if($this->method == 'get' || $this->method == 'post') {
+        if ($this->method == 'get' || $this->method == 'post') {
             foreach ($this->{$this->method . '_patterns'} as $pattern) {
-                if(preg_match($pattern, rawurldecode($_SERVER['REQUEST_URI'])) 
+                if (preg_match($pattern, rawurldecode($_SERVER['REQUEST_URI'])) 
                   || isset($_POST[$this->name])) {
-                    #check get requests
-                    if (preg_match('/=(\w{40})$/', rawurldecode($_SERVER['REQUEST_URI']), $matches)) {
-                        $result = $this->fetchToken($this->session, $this->browser);
+                    if (preg_match('/=(\w{40})$/', 
+                        rawurldecode($_SERVER['REQUEST_URI']), $matches)) {
+                        $result = $this->_fetchToken($this->session, $this->browser);
                         if (!$result || !in_array($matches[1], $result, true)) {
-                            $this->evokePenalty();		                	
+                            $this->_evokePenalty();		                	
                         } 
-                    }
-                    #check post requests
-                    elseif (isset($_POST[$this->name])) {
-                        $result = $this->fetchToken($this->session, $this->browser);
-                        if (!$result || !in_array($_POST[$this->name], $result, true)) {
-                            $this->evokePenalty();                          
+                    } elseif (isset($_POST[$this->name])) {
+                        $result = $this->_fetchToken($this->session, 
+                            $this->browser);
+                        if (!$result || !in_array($_POST[$this->name], 
+                            $result, true)) {
+                            $this->_evokePenalty();                          
                         }
-                    } 
-                    #no token found - penalty time!
-                    else {
-                        $this->evokePenalty();
+                    } else {
+                        $this->_evokePenalty();
                     }
                 }
             }
         } else {
-            #method not allowed
-            error_log('First::beginProtection() => method not allowed: ' . $this->method . ', _SERVER: ' . var_export($_SERVER, true));
-            header('HTTP/1.1 405 Method Not Allowed');
-            exit;
-            #throw new Exception('HTTP/1.1 405 Method Not Allowed');
+            throw new Exception('HTTP/1.1 405 Method Not Allowed');
         }
         return true;
     }
@@ -149,41 +171,46 @@ class CSRFX {
      * was evaluated.
      * 
      * @package CSRFx
-     * @param void
      * @return boolean 
      */
-    public function endProtection() {
-        #disable support for XHR //TODO: think about a solution 
-        if($this->isAjax()) {
+    public function endProtection()
+    {
+        //disable support for XHR //TODO: think about a solution 
+        if ($this->_isAjax()) {
             return false;
         }
         
         $this->output = ob_get_contents();
         ob_end_clean();
         
-        #add token to matching links
+        //add token to matching links
         preg_match('/(([\w-]+\.)?[\w-]+$)/', $_SERVER['HTTP_HOST'], $host); 
-        preg_match_all('/(?:<a href=\'([^\']+)\'>)|(?:<a href="([^"]+)">)/im', $this->output, $matches);
+        preg_match_all('/(?:<a href=\'([^\']+)\'>)|(?:<a href="([^"]+)">)/im', 
+            $this->output, $matches);
         $matches = array_unique(array_merge($matches[1], $matches[2])); 
-        foreach($matches as $link) {
+        foreach ($matches as $link) {
             preg_match('/([\w-]+\.[\w-]+)\//', $link, $submatches);
-            if(!isset($submatches[1]) || $submatches[1] == $host[1]) {
-	           foreach ($this->{$this->method . '_patterns'} as $pattern) {
-	               if (preg_match($pattern, substr($link, 0, -1))){
-	                   $this->output = str_ireplace($link, $link.$this->separator.$this->name.'='.$this->token, $this->output);            
+            if (!isset($submatches[1]) || $submatches[1] == $host[1]) {
+                foreach ($this->{$this->method . '_patterns'} as $pattern) {
+                    if (preg_match($pattern, substr($link, 0, -1))) {
+                        $this->output = str_ireplace($link, 
+                        $link.$this->separator.$this->name.'='.$this->token, 
+                        $this->output);            
                     }
                 }
             }
         }
 
-        #add token to forms
-        $this->output = str_ireplace('</form>', '<input type="hidden" name="'.$this->name.'" value="'.$this->token.'" /></form>', $this->output);            
-        $this->output = preg_replace('/(action="[^\"]+\/)\?t=\w{40}\"/', "$1\"", $this->output);
+        //add token to forms
+        $this->output = str_ireplace('</form>', '<input type="hidden" name="'.
+            $this->name.'" value="'.$this->token.'" /></form>', $this->output);
+        $this->output = preg_replace('/(action="[^\"]+\/)\?t=\w{40}\"/', "$1\"",
+            $this->output);
          
-        #add new token to table
-        $this->addToken();
+        //add new token to table
+        $this->_addToken();
 
-        #finally print the output
+        //finally print the output
         print $this->output;
         
         return true;
@@ -194,11 +221,11 @@ class CSRFX {
      * to the index page of the application.
      *
      * @package CSRFx
-     * @param void
      * @return void
      */
-    private function evokePenalty($message = false) {
-        header('location: /sicherheitsproblem/');
+    private function _evokePenalty() 
+    {
+        header('location: '.$this->penalty_url);
         exit;
     }
 
@@ -206,11 +233,12 @@ class CSRFX {
      * This method deletes the tokens with the matching CSRFX_SESSION
      *
      * @package CSRFx
-     * @param void
      * @return boolean true
      */
-    private function deleteTokens() {
-        $this->dbh->{$this->dbm}("DELETE FROM csrfx_tokens WHERE created < DATE_SUB(NOW(), INTERVAL 30 MINUTE)");
+    private function _deleteTokens() 
+    {
+        $this->dbh->{$this->dbm}("DELETE FROM csrfx_tokens WHERE created " . 
+            "< DATE_SUB(NOW(), INTERVAL 30 MINUTE)");
         return true;
     }
     
@@ -218,17 +246,21 @@ class CSRFX {
      * This method returns the result set for the token query
      *
      * @package CSRFx
-     * @param string the token to look for
      * @return mixed the result array or false
+     * @param string $session the session id
+     * @param string $browser the browser hash
      */
-    private function fetchToken($session = false, $browser = false) {
+    private function _fetchToken($session = false, $browser = false) 
+    {
         $result = $this->dbh->{$this->dbm}("SELECT id FROM csrfx_tokens 
-                                               WHERE session = '".mysql_escape_string($session)."'
-                                               AND agent = '".mysql_escape_string($browser)."'");
+                                            WHERE session = '".
+                                            mysql_escape_string($session)."'
+                                            AND agent = '".
+                                            mysql_escape_string($browser)."'");
         
-        if($result) {
+        if ($result) {
             $tokens = array();
-            foreach($result as $item) {
+            foreach ($result as $item) {
                 $tokens[] = $item['csrfx_tokens']['id'];
             }
             return $tokens;
@@ -240,19 +272,19 @@ class CSRFX {
      * This method adds a new token to the crsfx table
      * 
      * @package CSRFx
-     * @param void
      * @return mixed the execution result 
      */
-    private function addToken() {
-        return $this->dbh->{$this->dbm}("INSERT 
-                                            INTO csrfx_tokens (id, session, agent, created) 
-                                            VALUES (
-                                                '".mysql_escape_string($this->token)."', 
-                                                '".mysql_escape_string($this->session)."', 
-                                                '".mysql_escape_string(md5($_SERVER['HTTP_USER_AGENT']))."', 
-                                                NOW()
-                                             )
-                                         ");
+    private function _addToken() 
+    {
+        return $this->
+            dbh->{$this->dbm}("INSERT 
+                              INTO csrfx_tokens (id, session, agent, created) 
+                              VALUES (
+                              '".mysql_escape_string($this->token)."', 
+                              '".mysql_escape_string($this->session)."', 
+                              '".mysql_escape_string($this->browser)."', 
+                              NOW()
+                              )");
     }
     
     /**
@@ -260,10 +292,10 @@ class CSRFX {
      * a true if yes
      * 
      * @package CSRFx
-     * @param void
      * @return boolean true if XHR
      */
-    private function isAjax() {
+    private function _isAjax() 
+    {
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
             && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest'
                 || preg_match(CSRFX_EXCLUDE, $_SERVER['REQUEST_URI'])) {
@@ -273,6 +305,6 @@ class CSRFX {
     }
 }    
 
-#create instance and start protection
+//create instance and start protection
 $csrf = new CSRFX();
 $csrf->loadProfile('cakephp')->beginProtection();

@@ -14,35 +14,34 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * @package    CSRFx
+ * PHP version 5.11.6+
+ * 
+ * @category Security
+ * @package  CSRFx
+ * @author   Mario Heiderich <mario.heiderich@gmail.com>
+ * @license  http://www.gnu.org/licenses/lgpl.html LGPL
+ * @link     http://code.google.com/p/csrfx/
  */
 
-$config = new DATABASE_CONFIG();
+//instanciate databse config object
+$config  = new DATABASE_CONFIG();
 $default = $config->default;
-//$test = $config->test;
-//$dev = $config->dev;
 
+//define config parameters
 define('CSRFX_EXCLUDE', '/(?:\/admin\/)/i');
-define('CSRFX_PATH', $default['driver'] . ':host=' . $default['host'] . ';dbname=' . $default['database']);
 define('CSRFX_USER', $default['login']);
 define('CSRFX_PASS', $default['password']);
+define('CSRFX_PATH', $default['driver'] . 
+                     ':host=' . $default['host'] . 
+                     ';dbname=' . $default['database']);
 
-/**
-define('CSRFX_PATH', $test['driver'] . ':host=' . $test['host'] . ';dbname=' . $test['database']);
-define('CSRFX_USER', $test['login']);
-define('CSRFX_PASS', $test['password']); 
 
-define('CSRFX_PATH', $dev['driver'] . ':host=' . $dev['host'] . ';dbname=' . $dev['database']);
-define('CSRFX_USER', $dev['login']);
-define('CSRFX_PASS', $dev['password']);
-**/ 
-
-#fetch cake session for better scalability
-$session = new CakeSession;
-$session = $session->read();
+//fetch cake session for better scalability
+$session       = new CakeSession;
+$session       = $session->read();
 $this->session = session_id();
 
-#fetch the cake connection manager
+//fetch the cake connection manager
 $this->dbh =& ConnectionManager::getDataSource('default');
 $this->dbm = 'query';
 

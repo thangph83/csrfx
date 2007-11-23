@@ -14,7 +14,13 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * @package    CSRFx
+ * PHP version 5.11.6+
+ * 
+ * @category Security
+ * @package  CSRFx
+ * @author   Mario Heiderich <mario.heiderich@gmail.com>
+ * @license  http://www.gnu.org/licenses/lgpl.html LGPL
+ * @link     http://code.google.com/p/csrfx/
  */
 
 // This is it? Yep - this is it!

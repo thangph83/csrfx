@@ -95,13 +95,12 @@ class CSRFX
      * connection data and patterns can be found
      *
      * @package CSRFx
+     * @param string $name The application name
      * 
-     *  
      * @throws Exception if invaild application name is given
      * @return Object this object for pagination
-     * @param string $name blafasel false
      */
-    public function loadProfile($name) 
+    public function loadProfile($name = false) 
     {
         if ($name && !preg_match('/\W/', $name)) {
             include_once dirname(__FILE__) . '/applications/' . 
@@ -246,9 +245,10 @@ class CSRFX
      * This method returns the result set for the token query
      *
      * @package CSRFx
+     * @param string $session The session id
+     * @param string $browser The browser hash
+     * 
      * @return mixed the result array or false
-     * @param string $session the session id
-     * @param string $browser the browser hash
      */
     private function _fetchToken($session = false, $browser = false) 
     {

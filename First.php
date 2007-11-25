@@ -184,9 +184,9 @@ class CSRFX
         
         //add token to matching links
         preg_match('/(([\w-]+\.)?[\w-]+$)/', $_SERVER['HTTP_HOST'], $host); 
-        preg_match_all('/(?:<a href=\'([^\']+)\'>)|(?:<a href="([^"]+)">)/im', 
+        preg_match_all('/(?:<a href=\'([^\']+)\'>)|(?:<a href="([^"]+)">)|(?:<a href=`([^`]+)`>)/im', 
             $this->output, $matches);
-        $matches = array_unique(array_merge($matches[1], $matches[2])); 
+        $matches = array_unique(array_merge($matches[1], $matches[2], $matches[3])); 
         foreach ($matches as $link) {
             preg_match('/([\w-]+\.[\w-]+)\//', $link, $submatches);
             if (!isset($submatches[1]) || $submatches[1] == $host[1]) {

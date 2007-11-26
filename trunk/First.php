@@ -126,11 +126,6 @@ class CSRFX
      */
     public function beginProtection() 
     {
-        //disable support for XHR //TODO: think about a solution
-        if ($this->_isAjax()) {
-            return false;
-        }
-
         //and clear the table from before adding new token
         $this->_deleteTokens();        
         
@@ -174,11 +169,6 @@ class CSRFX
      */
     public function endProtection()
     {
-        //disable support for XHR //TODO: think about a solution 
-        if ($this->_isAjax()) {
-            return false;
-        }
-        
         $this->output = ob_get_contents();
         ob_end_clean();
         
@@ -287,23 +277,6 @@ class CSRFX
                               '".mysql_escape_string($this->browser)."', 
                               NOW()
                               )");
-    }
-    
-    /**
-     * This method checks if the request was XHR and returns 
-     * a true if yes
-     * 
-     * @package CSRFx
-     * @return boolean true if XHR
-     */
-    private function _isAjax() 
-    {
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
-            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest'
-                || preg_match(CSRFX_EXCLUDE, $_SERVER['REQUEST_URI'])) {
-            return true;
-        }
-        return false;     	
     }
 }    
 

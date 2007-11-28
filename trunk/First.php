@@ -57,6 +57,7 @@ class CSRFX
     
     private $name = 't';
     private $separator = '?';
+    private $expiration_time = 30;
     private $token = false;
     private $method = false;
     private $browser = false;
@@ -172,21 +173,26 @@ class CSRFX
         $this->output = ob_get_contents();
         ob_end_clean();
         
-        //add token to matching links
+        //find all embedded links and tidy them up
+        $tmp_output = preg_replace('/(?:title|class|id|name)'.
+            '(?<!href)=(?:(?:"[^"]*")'.
+            '|(?:\'[^\']*\')'.
+            '|(?:`[^`]*`))/i', null, $this->output);
         preg_match('/(([\w-]+\.)?[\w-]+$)/', $_SERVER['HTTP_HOST'], $host); 
-        preg_match_all('/(?:<a href=\'([^\']+)\'>)|(?:<a href="([^"]+)">)|' . 
-            '(?:<a href=`([^`]+)`>)|(?:<a href=\s*([^\s]+)\s>)/im', 
-            $this->output, $matches);
-        $matches = array_unique(array_merge($matches[1], $matches[2], 
-            $matches[3], $matches[4])); 
+        preg_match_all('/(?:<a\s+href=\'([^\']+)\'>)|(?:<a\s+href="([^"]+)">)|'.
+            '(?:<a\s+href=`([^`]+)`>)/im', $tmp_output, $matches);
+        $matches = array_merge($matches[1], $matches[2], $matches[3]); 
+        $matches = array_unique($matches);
+        
+        //iterate through the found links and match the patterns
         foreach ($matches as $link) {
             preg_match('/([\w-]+\.[\w-]+)\//', $link, $submatches);
             if (!isset($submatches[1]) || $submatches[1] == $host[1]) {
                 foreach ($this->{$this->method . '_patterns'} as $pattern) {
                     if (preg_match($pattern, substr($link, 0, -1))) {
                         $this->output = str_ireplace($link, 
-                        $link.$this->separator.$this->name.'='.$this->token, 
-                        $this->output);            
+                            $link.$this->separator.$this->name.'='.$this->token, 
+                            $this->output);            
                     }
                 }
             }
@@ -228,8 +234,8 @@ class CSRFX
      */
     private function _deleteTokens() 
     {
-        $this->dbh->{$this->dbm}("DELETE FROM csrfx_tokens WHERE created " . 
-            "< DATE_SUB(NOW(), INTERVAL 30 MINUTE)");
+        $this->dbh->{$this->dbm}("DELETE FROM csrfx_tokens WHERE created ".
+            "< DATE_SUB(NOW(), INTERVAL ".intval($this->expiration_time)." MINUTE)");
         return true;
     }
     

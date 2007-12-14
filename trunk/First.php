@@ -130,7 +130,8 @@ class CSRFX
         //and clear the table from before adding new token
         $this->_deleteTokens();        
         
-        if ($this->method == 'get' || $this->method == 'post' || $this->method == 'head') {
+        if ($this->method == 'get' || $this->method == 'post' || 
+            $this->method == 'head') {
             foreach ($this->{$this->method . '_patterns'} as $pattern) {
                 if (preg_match($pattern, rawurldecode($_SERVER['REQUEST_URI'])) 
                   || isset($_POST[$this->name])) {

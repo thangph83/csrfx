@@ -174,7 +174,7 @@ class CSRFX
         ob_end_clean();
         
         //find all embedded links and tidy them up
-        $tmp_output = preg_replace('/\s*(?:title|class|id|name)'.
+        $tmp_output = preg_replace('/\s*(?:title|class|id|name|rel)'.
             '(?<!href)=(?:(?:"[^"]*")'.
             '|(?:\'[^\']*\')'.
             '|(?:`[^`]*`))/i', null, $this->output);

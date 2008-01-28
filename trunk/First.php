@@ -176,14 +176,22 @@ class CSRFX
         
         //find all embedded links and tidy them up
         $tmp_output = preg_replace('/\s*(?:title|class|id|name|rel)'.
-            '(?<!href)=(?:(?:"[^"]*")'.
+            '(?<!href)=\\?(?:(?:"[^"]*")'.
             '|(?:\'[^\']*\')'.
             '|(?:`[^`]*`))/i', null, $this->output);
+        
         preg_match('/(([\w-]+\.)?[\w-]+$)/', $_SERVER['HTTP_HOST'], $host); 
-        preg_match_all('/(?:<a\s+href=\'([^\']+)\'>)|(?:<a\s+href="([^"]+)">)|'.
-            '(?:<a\s+href=`([^`]+)`>)/im', $tmp_output, $matches);
+        preg_match_all('/(?:<a\s+href=\\\?\'([^\']+)\'>)|(?:<a\s+href=\\\?"([^"]+)">)|'.
+            '(?:<a\s+href=\\\?`([^`]+)`>)/im', $tmp_output, $matches);
+        
         $matches = array_merge($matches[1], $matches[2], $matches[3]); 
         $matches = array_unique($matches);
+
+        //modifiy token if content arrives wrapped in JSON
+        if(isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
+            && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+            $this->token = $this->token . '\\'; 
+        }
         
         //iterate through the found links and match the patterns
         foreach ($matches as $link) {
@@ -202,7 +210,7 @@ class CSRFX
         //add token to forms
         $this->output = str_ireplace('</form>', '<input type="hidden" name="'.
             $this->name.'" value="'.$this->token.'" /></form>', $this->output);
-        $this->output = preg_replace('/(action="[^\"]+\/)\?t=\w{40}\"/', "$1\"",
+        $this->output = preg_replace('/(action=\\?"[^\"]+\/)\?t=\w{40}\"/', "$1\"",
             $this->output);
          
         //add new token to table
@@ -212,7 +220,7 @@ class CSRFX
         print $this->output;
         
         return true;
-    }
+    } 
 
     /**
      * This method sets the 412 headers and redirects 
